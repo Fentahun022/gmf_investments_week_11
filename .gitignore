@@ -1,0 +1,62 @@
+# Python specific
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.env # For .env files if you use them for environment variables
+.venv/
+build/
+develop-eggs/
+dist/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.venv
+pip-wheel-metadata/
+.tox/
+.coverage
+.coverage.*
+.hypothesis/
+.pytest_cache/
+
+# IDE specific (add more as needed for your IDE)
+.idea/             # JetBrains IDEs (PyCharm, IntelliJ)
+.vscode/           # VS Code
+*.iml              # JetBrains IDEs
+.project           # Eclipse
+.pydevproject      # PyDev
+.DS_Store          # macOS specific
+.Trash/            # macOS temporary folder
+Thumbs.db          # Windows thumbnail cache
+
+# Data files (as per your project structure)
+# These files can be large or regenerated, so they shouldn't be version controlled.
+data/raw/           # Raw downloaded data
+data/processed/     # Processed data
+*.pkl               # Python pickle files (e.g., your scaler, models)
+*.h5                # Keras/TensorFlow saved models
+*.keras             # Keras 3 saved models
+
+# Logs
+*.log
+logs/
+
+# Jupyter Notebook files
+.ipynb_checkpoints/ # Jupyter Notebook checkpoints
+*.ipynb_checkpoints # Also for top-level checkpoints if created sometimes
+
+# Other temporary files
+*~
+.#*
+*.swp              # Vim swap files
