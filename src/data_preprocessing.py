@@ -24,40 +24,51 @@ def clean_and_preprocess_data(data):
         data.index = pd.to_datetime(data.index)
 
     # Handle missing values (forward fill then backward fill for any leading NaNs)
-    # This is important if there are gaps in trading days for specific tickers
-    # FIX: Use ffill() and bfill() methods directly instead of fillna(method=...)
+    # This is applied to the raw multi-indexed dataframe
     data = data.ffill().bfill()
     if data.isnull().sum().sum() > 0:
-        print(f"Warning: Still missing values after fillna: \n{data.isnull().sum()[data.isnull().sum() > 0]}")
+        print(f"Warning: Still missing values after ffill/bfill in raw data: \n{data.isnull().sum()[data.isnull().sum() > 0]}")
 
-    # FIX: Correctly select 'Adj Close' columns from the MultiIndex
-    # Use .xs() to cross-section the MultiIndex columns at level 0 for 'Adj Close'
+    # Select Adj Close data and flatten multi-index columns to ticker names
     adj_close_data = data.xs('Adj Close', level=0, axis=1).copy()
-    
+    adj_close_data.columns = [col for col in adj_close_data.columns] # Ensure simple column names (e.g., 'TSLA')
+
     # Calculate daily returns
-    daily_returns = adj_close_data.pct_change().dropna()
-    # Ensure column names are consistent after selecting Adj Close
-    # They should already be just ticker names after .xs()
-    # daily_returns.columns = [f'{col}_Daily_Return' for col in daily_returns.columns] # This line might not be needed if 'col' is already ticker name
+    daily_returns = adj_close_data.pct_change()
+
+    # CRITICAL FIX: Convert inf/-inf to NaN and then drop NaNs immediately from daily_returns
+    daily_returns.replace([np.inf, -np.inf], np.nan, inplace=True)
+    daily_returns.dropna(inplace=True) # Drop rows where any daily return is NaN
+
     daily_returns = daily_returns.add_suffix('_Daily_Return')
 
-
     # Calculate rolling volatility (e.g., 20-day standard deviation of daily returns)
-    rolling_volatility = daily_returns.rolling(window=20).std().dropna()
-    # rolling_volatility.columns = [f'{col.replace("_Daily_Return", "")}_Rolling_Vol_20D' for col in rolling_volatility.columns]
+    # Ensure this is also clean and aligned
+    rolling_volatility = daily_returns.iloc[:, [i for i, col in enumerate(daily_returns.columns) if '_Daily_Return' in col]].rolling(window=20).std()
     rolling_volatility = rolling_volatility.add_suffix('_Rolling_Vol_20D').rename(columns=lambda x: x.replace('_Daily_Return', ''))
+    rolling_volatility.replace([np.inf, -np.inf], np.nan, inplace=True) # Clean infinities from rolling std
+    rolling_volatility.dropna(inplace=True) # Drop NaNs introduced by rolling calculations or infinities
 
-
-    # Merge processed data back (aligning by index)
-    # Ensure processed_data columns are correctly named before merge
+    # Merge all components. Use an inner join to ensure only dates common to all clean series remain.
     processed_data = adj_close_data.copy()
     processed_data = processed_data.add_suffix('_Adj_Close') # Add suffix to Adj_Close columns
 
-    processed_data = processed_data.merge(daily_returns, left_index=True, right_index=True, how='left')
-    processed_data = processed_data.merge(rolling_volatility, left_index=True, right_index=True, how='left')
+    # Aligning and merging, ensuring common index
+    # We explicitly merge each component to make sure they are aligned
+    processed_data = processed_data.merge(daily_returns, left_index=True, right_index=True, how='inner')
+    processed_data = processed_data.merge(rolling_volatility, left_index=True, right_index=True, how='inner')
 
-    # Drop rows with NaNs introduced by rolling calculations (at the beginning)
-    processed_data.dropna(inplace=True)
+    # FINAL, SUPER AGGRESSIVE CLEANING STEP:
+    # After all merges, apply pd.to_numeric and dropna across the entire DataFrame
+    print("Applying final rigorous cleaning to merged data...")
+    for col in processed_data.columns:
+        processed_data[col] = pd.to_numeric(processed_data[col], errors='coerce') # Coerce non-numeric to NaN
+    processed_data.replace([np.inf, -np.inf], np.nan, inplace=True) # Replace any remaining infinities
+    processed_data.dropna(inplace=True) # Drop any row with any NaN
+
+    if processed_data.empty:
+        raise ValueError("Processed DataFrame became empty after rigorous cleaning. Check raw data consistency.")
+
 
     print("Data preprocessing complete.")
     return processed_data
